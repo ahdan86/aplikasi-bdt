@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 
 class StudentController extends Controller
@@ -15,9 +16,18 @@ class StudentController extends Controller
      */
     public function index()
     {
-        $students = Student::latest()->paginate(5);
-        return view('students.index',compact('students'))
+        $cachedStudents = Redis::get('students');
+
+        if(isset($cachedStudents)) {
+            $students = json_decode($cachedStudents);
+            return view('students.index',compact('students'))
             ->with('i', (request()->input('page', 1) - 1) * 5);
+        } else {
+            $students = Student::latest()->paginate(5);
+            // Redis::set('students', json_encode($students));
+            return view('students.index',compact('students'))
+            ->with('i', (request()->input('page', 1) - 1) * 5);
+        }
     }
 
     /**
@@ -99,9 +109,25 @@ class StudentController extends Controller
             'email' => 'required',
             'jurusan' => 'required',
             'angkatan' => 'required',
-            'foto' => 'required',
+            'foto' => 'sometimes',
         ]);
-        $student->update($request->all());
+        //store foto to storage/app/public/foto
+        if($request->hasFile('foto')) {
+            Storage::disk('public')->delete($student->foto);
+            $nama_file = $request->file('foto')->store('foto', 'public');
+        } else {
+            $nama_file = $student->foto;
+        }
+
+        $student->update([
+            'nrp' => $request->nrp,
+            'nama' => $request->nama,
+            'email' => $request->email,
+            'jurusan' => $request->jurusan,
+            'angkatan' => $request->angkatan,
+            'foto' => $nama_file,
+        ]);
+
         return redirect()->route('students.index')
                         ->with('success','Student updated successfully');
     }
