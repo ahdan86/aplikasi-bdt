@@ -16,15 +16,15 @@ class StudentController extends Controller
      */
     public function index()
     {
-        $cachedStudents = Redis::get('students');
+        $cachedStudents = Redis::get('students.all');
 
         if(isset($cachedStudents)) {
             $students = json_decode($cachedStudents);
             return view('students.index',compact('students'))
             ->with('i', (request()->input('page', 1) - 1) * 5);
         } else {
-            $students = Student::latest()->paginate(5);
-            // Redis::set('students', json_encode($students));
+            $students = Student::all();
+            Redis::set('students', $students);
             return view('students.index',compact('students'))
             ->with('i', (request()->input('page', 1) - 1) * 5);
         }
